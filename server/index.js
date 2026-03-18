@@ -1,17 +1,18 @@
 import express from "express";
-import cors from "cors";
+
 import { Resend } from "resend";
 import pkg from "pg";
 const { Pool } = pkg;
 
 const app = express();
 
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type"],
-}));
-app.options("*", cors());
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(200).end();
+  next();
+});
 app.use(express.json());
 
 const pool = new Pool({
