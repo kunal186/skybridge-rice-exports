@@ -11,7 +11,7 @@ app.use(cors({
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
 }));
-
+app.options("*", cors());
 app.use(express.json());
 
 const pool = new Pool({
@@ -37,29 +37,20 @@ await pool.query(`
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )
 `);
-
 console.log("✅ Database connected");
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 app.post("/api/quote", async (req, res) => {
+  console.log("Quote request received:", req.body);
+
   const {
-    fullName,
-    companyName,
-    country,
-    email,
-    whatsapp,
-    riceType,
-    packaging,
-    quantity,
-    destinationPort,
-    priceTerm,
-    targetPrice,
-    message
+    fullName, companyName, country, email, whatsapp,
+    riceType, packaging, quantity, destinationPort,
+    priceTerm, targetPrice, message,
   } = req.body;
 
   const required = { fullName, companyName, country, email, whatsapp, riceType, packaging, quantity, destinationPort };
-
   for (const [key, value] of Object.entries(required)) {
     if (!value || !String(value).trim()) {
       return res.status(400).json({ error: `Field '${key}' is required.` });
@@ -67,19 +58,15 @@ app.post("/api/quote", async (req, res) => {
   }
 
   let quoteId;
-
   try {
     const result = await pool.query(
       `INSERT INTO quotes (full_name, company_name, country, email, whatsapp, rice_type, packaging, quantity, destination_port, price_term, target_price, message)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
-      [fullName, companyName, country, email, whatsapp, riceType, packaging, quantity, destinationPort, priceTerm || null, targetPrice || null, message || null]
+      [fullName, companyName, country, email, whatsapp, riceType, packaging, quantity, destinationPort,
+       priceTerm || null, targetPrice || null, message || null]
     );
-
-    if (!result.rows || result.rows.length === 0) {
-      return res.status(500).json({ error: "Failed to create quote." });
-    }
-
     quoteId = result.rows[0].id;
+    console.log("✅ Saved to DB, quote ID:", quoteId);
   } catch (err) {
     console.error("DB error:", err);
     return res.status(500).json({ error: "Database error." });
@@ -105,7 +92,7 @@ app.post("/api/quote", async (req, res) => {
                 ["Packaging", packaging], ["Quantity", quantity], ["Destination Port", destinationPort],
                 ...(priceTerm ? [["Price Term", priceTerm]] : []),
                 ...(targetPrice ? [["Target Price", targetPrice]] : []),
-                ...(message ? [["Message", message]] : [])
+                ...(message ? [["Message", message]] : []),
               ].map(([label, val], i) => `
                 <tr style="background:${i % 2 === 0 ? "#fff" : "#f8f6f0"};">
                   <td style="padding:10px 12px;color:#888;width:38%;border-bottom:1px solid #f0ede4;">${label}</td>
@@ -118,8 +105,9 @@ app.post("/api/quote", async (req, res) => {
             <p style="margin:0;color:#999;font-size:12px;">Quote #${quoteId} · Skybridge Global · ${new Date().toUTCString()}</p>
           </div>
         </div>
-      `
+      `,
     });
+    console.log("✅ Email sent");
   } catch (err) {
     console.error("Email error:", err);
   }
@@ -132,7 +120,6 @@ app.get("/api/quotes", async (req, res) => {
     const result = await pool.query("SELECT * FROM quotes ORDER BY created_at DESC");
     res.json(result.rows);
   } catch (err) {
-    console.error("Query error:", err);
     res.status(500).json({ error: "Failed to fetch quotes." });
   }
 });
