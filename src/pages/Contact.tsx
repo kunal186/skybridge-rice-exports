@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import Layout from "@/components/Layout";
 
 const WHATSAPP_NUMBER = "919319904455";
-const API_URL = "";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 const fadeIn = {
   initial: { opacity: 0, y: 30 },
   whileInView: { opacity: 1, y: 0 },
