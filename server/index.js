@@ -7,8 +7,9 @@ const { Pool } = pkg;
 const app = express();
 
 app.use(cors({
-  origin: ['https://skybridge-rice-exports.vercel.app', 'http://localhost:5173'],
-  methods: ['GET', 'POST'],
+  origin: "*",
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
 }));
 
 app.use(express.json());
