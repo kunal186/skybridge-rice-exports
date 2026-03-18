@@ -42,10 +42,6 @@ console.log("✅ Database connected");
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 app.post("/api/quote", async (req, res) => {
-
-  // DEBUG LOG (request confirm karne ke liye)
-  console.log("📩 Quote request received:", req.body);
-
   const {
     fullName,
     companyName,
@@ -73,117 +69,74 @@ app.post("/api/quote", async (req, res) => {
 
   try {
     const result = await pool.query(
-      `INSERT INTO quotes 
-      (full_name, company_name, country, email, whatsapp, rice_type, packaging, quantity, destination_port, price_term, target_price, message)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
-      [
-        fullName,
-        companyName,
-        country,
-        email,
-        whatsapp,
-        riceType,
-        packaging,
-        quantity,
-        destinationPort,
-        priceTerm || null,
-        targetPrice || null,
-        message || null
-      ]
+      `INSERT INTO quotes (full_name, company_name, country, email, whatsapp, rice_type, packaging, quantity, destination_port, price_term, target_price, message)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+      [fullName, companyName, country, email, whatsapp, riceType, packaging, quantity, destinationPort, priceTerm || null, targetPrice || null, message || null]
     );
 
-    quoteId = result.rows[0].id;
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(500).json({ error: "Failed to create quote." });
+    }
 
+    quoteId = result.rows[0].id;
   } catch (err) {
-    console.error("❌ DB error:", err);
+    console.error("DB error:", err);
     return res.status(500).json({ error: "Database error." });
   }
 
   try {
-
     await resend.emails.send({
       from: "Skybridge Website <noreply@skybridgeglobal.in>",
       to: ["contact@skybridgeglobal.in"],
       replyTo: email,
       subject: `New Quote #${quoteId} — ${fullName} | ${riceType} | ${country}`,
-
       html: `
         <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;border:1px solid #e0c97f;border-radius:10px;overflow:hidden;">
-          
           <div style="background:linear-gradient(135deg,#1a3c2e,#2d5a40);padding:28px 24px;text-align:center;">
             <h1 style="color:#e0c97f;margin:0;font-size:22px;">New Quote Request</h1>
-            <p style="color:rgba(255,255,255,0.65);margin:6px 0 0;font-size:13px;">
-              Skybridge Global — Inquiry #${quoteId}
-            </p>
+            <p style="color:rgba(255,255,255,0.65);margin:6px 0 0;font-size:13px;">Skybridge Global — Inquiry #${quoteId}</p>
           </div>
-
           <div style="padding:28px;background:#fff;">
             <table style="width:100%;border-collapse:collapse;font-size:14px;">
-              
               ${[
-                ["Full Name", fullName],
-                ["Company", companyName],
-                ["Country", country],
-                ["Email", email],
-                ["WhatsApp", whatsapp],
-                ["Rice Type", riceType],
-                ["Packaging", packaging],
-                ["Quantity", quantity],
-                ["Destination Port", destinationPort],
+                ["Full Name", fullName], ["Company", companyName], ["Country", country],
+                ["Email", email], ["WhatsApp", whatsapp], ["Rice Type", riceType],
+                ["Packaging", packaging], ["Quantity", quantity], ["Destination Port", destinationPort],
                 ...(priceTerm ? [["Price Term", priceTerm]] : []),
                 ...(targetPrice ? [["Target Price", targetPrice]] : []),
                 ...(message ? [["Message", message]] : [])
               ].map(([label, val], i) => `
-                
                 <tr style="background:${i % 2 === 0 ? "#fff" : "#f8f6f0"};">
-                  
-                  <td style="padding:10px 12px;color:#888;width:38%;border-bottom:1px solid #f0ede4;">
-                    ${label}
-                  </td>
-
-                  <td style="padding:10px 12px;font-weight:600;color:#1a1a1a;border-bottom:1px solid #f0ede4;">
-                    ${val}
-                  </td>
-
+                  <td style="padding:10px 12px;color:#888;width:38%;border-bottom:1px solid #f0ede4;">${label}</td>
+                  <td style="padding:10px 12px;font-weight:600;color:#1a1a1a;border-bottom:1px solid #f0ede4;">${val}</td>
                 </tr>
-
               `).join("")}
-
             </table>
           </div>
-
           <div style="background:#f5f0e8;padding:14px;text-align:center;">
-            <p style="margin:0;color:#999;font-size:12px;">
-              Quote #${quoteId} · Skybridge Global · ${new Date().toUTCString()}
-            </p>
+            <p style="margin:0;color:#999;font-size:12px;">Quote #${quoteId} · Skybridge Global · ${new Date().toUTCString()}</p>
           </div>
-
         </div>
-      `,
-
+      `
     });
-
   } catch (err) {
-    console.error("❌ Email error:", err);
+    console.error("Email error:", err);
   }
 
   return res.json({ success: true, id: quoteId });
-
 });
 
 app.get("/api/quotes", async (req, res) => {
-  const result = await pool.query(
-    "SELECT * FROM quotes ORDER BY created_at DESC"
-  );
-  res.json(result.rows);
+  try {
+    const result = await pool.query("SELECT * FROM quotes ORDER BY created_at DESC");
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Query error:", err);
+    res.status(500).json({ error: "Failed to fetch quotes." });
+  }
 });
 
-app.get("/", (req, res) =>
-  res.json({ status: "ok", service: "Skybridge API" })
-);
+app.get("/", (req, res) => res.json({ status: "ok", service: "Skybridge API" }));
 
 const PORT = process.env.PORT || 3001;
-
-app.listen(PORT, () => {
-  console.log(`✅ Skybridge backend running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`✅ Skybridge backend running on port ${PORT}`));
