@@ -5,7 +5,10 @@ import pkg from "pg";
 const { Pool } = pkg;
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: ['https://skybridge-rice-exports.vercel.app', 'http://localhost:5173'],
+  methods: ['GET', 'POST'],
+}));
 app.use(express.json());
 
 const pool = new Pool({
